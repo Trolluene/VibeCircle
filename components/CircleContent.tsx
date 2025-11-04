@@ -1,6 +1,7 @@
 import React from 'react';
 import { Chord, ChordQuality } from '../types';
 import { NOTE_COLORS, NOTE_POSITION_MAP } from '../constants';
+import { getRootNote } from '../utils/musicTheory';
 
 interface CircleContentProps {
   chord: Chord;
@@ -30,8 +31,8 @@ const CircleContent: React.FC<CircleContentProps> = ({ chord, quality }) => {
     );
   }
   
-  const rootNoteOfChord = chord.name.slice(0, chord.name.length > 1 && (chord.name[1] === '#' || chord.name[1] === 'b' || chord.name[1] === '°') ? 2 : 1);
-  const colorIndex = NOTE_POSITION_MAP.get(rootNoteOfChord.replace('°','')) ?? 0;
+  const rootNoteOfChord = getRootNote(chord.name);
+  const colorIndex = NOTE_POSITION_MAP.get(rootNoteOfChord) ?? 0;
   const color = NOTE_COLORS[colorIndex] || '#9ca3af';
 
   return (
@@ -47,8 +48,7 @@ const CircleContent: React.FC<CircleContentProps> = ({ chord, quality }) => {
         </div>
         <div className="flex items-center justify-center gap-0.5 h-2 xs:h-2.5 sm:h-2.5">
           {chord.notes.slice(0,4).map((note, i) => {
-            const noteName = note.replace(/♯/g, '#');
-            const rootNoteOfNote = noteName.slice(0, noteName.length > 1 && (noteName[1] === '#' || noteName[1] === 'b') ? 2 : 1);
+            const rootNoteOfNote = getRootNote(note);
             const noteColorIndex = NOTE_POSITION_MAP.get(rootNoteOfNote) ?? 0;
             return (
               <div

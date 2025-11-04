@@ -1,5 +1,6 @@
-import React, { useMemo, useState, useRef } from 'react';
-import { POSITIONAL_DATA, MODES, CHORD_NOTES_MAP, RELATIVE_POSITION_NUMERALS, INTERVAL_NAMES } from '../constants';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { POSITIONAL_DATA, MODES, RELATIVE_POSITION_NUMERALS, INTERVAL_NAMES } from '../constants';
+import { getChordNotes } from '../utils/musicTheory';
 import { ChordQuality } from '../types';
 import CircleSegment from './CircleSegment';
 import CircleContent from './CircleContent';
@@ -27,15 +28,12 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
   ];
 
   const pieces = useMemo(() => {
-    // These positions (relative to the top 'I' position) are always diatonic.
-    const DIATONIC_POSITIONS = [0, 1, 11];
+    const DIATONIC_POSITIONS = [0, 1, 11]; 
+    const selectedKeyName = POSITIONAL_DATA[selectedKeyIndex].major;
 
     return rings.flatMap(ring => 
       Array.from({ length: 12 }, (_, i) => {
         const isChordRing = [ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.DIMINISHED].includes(ring.quality);
-        
-        // If it's a chord ring, its content rotates. Get data from a rotated index.
-        // Otherwise, for static rings (Modes, Intervals), get data from the static index `i`.
         const dataIndex = isChordRing ? (i + selectedKeyIndex) % 12 : i;
         const posData = POSITIONAL_DATA[dataIndex];
         
@@ -44,21 +42,18 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
           case ChordQuality.MAJOR: chordName = posData.major; break;
           case ChordQuality.MINOR: chordName = posData.minor; break;
           case ChordQuality.DIMINISHED: chordName = posData.diminished; break;
-          // Static rings use the non-rotated index `i` for their labels.
           case ChordQuality.MODE: chordName = MODES.find(m => m.position === i)?.name || ''; break;
           case ChordQuality.INTERVAL: chordName = INTERVAL_NAMES[i]; break;
           default: chordName = '';
         }
 
-        // The highlight zone is static, based on the segment's absolute position `i`.
         const isDiatonicMajor = ring.quality === ChordQuality.MAJOR && DIATONIC_POSITIONS.includes(i);
         const isDiatonicMinor = ring.quality === ChordQuality.MINOR && DIATONIC_POSITIONS.includes(i);
-        const isDiatonicDiminished = ring.quality === ChordQuality.DIMINISHED && i === 0; // vii° is only at the tonic position.
+        const isDiatonicDiminished = ring.quality === ChordQuality.DIMINISHED && i === 0;
         const isDiatonic = isDiatonicMajor || isDiatonicMinor || isDiatonicDiminished;
         
         const isTonic = ring.quality === ChordQuality.MAJOR && i === 0;
         
-        // Roman numerals are labels for the static slots, so they are based on `i`.
         const numerals = RELATIVE_POSITION_NUMERALS[i];
         let numeral: string;
          switch (ring.quality) {
@@ -68,150 +63,185 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
             default: numeral = '';
         }
 
+        const chord = getChordNotes(chordName, selectedKeyName);
+
         return {
           key: `${ring.quality}-${i}`,
-          angle: i * 30, // Segments are always drawn at the same angle.
+          angle: i * 30,
           innerRadius: ring.innerRadius,
           outerRadius: ring.outerRadius,
           quality: ring.quality,
-          chordName,
+          chord,
           numeral,
           isDiatonic,
           isTonic,
-          isClickable: isChordRing,
-          // When clicking, select the key of the chord currently in that slot.
-          onClick: isChordRing ? () => onKeySelect(dataIndex) : () => {},
+          isClickable: ring.quality === ChordQuality.MAJOR,
+          onClick: ring.quality === ChordQuality.MAJOR ? () => onKeySelect(dataIndex) : () => {},
           position: i,
         };
       })
-    ).filter(p => p.chordName);
+    ).filter(p => p.chord.name);
   }, [selectedKeyIndex, onKeySelect]);
 
   const getVisualCenterRadius = (inner: number, outer: number): number => {
-    if (outer - inner > 10) {
-      return inner * 0.48 + outer * 0.52;
-    }
     return (inner + outer) / 2;
   };
 
-  // Drag to rotate logic
-  const [isDragging, setIsDragging] = useState(false);
-  const lastPos = useRef(0);
-  const accumulatedDelta = useRef(0);
-  const ROTATION_THRESHOLD = 50; // pixels to drag to trigger one key change
-
-  const handleDragStart = (clientX: number) => {
-    setIsDragging(true);
-    lastPos.current = clientX;
-    accumulatedDelta.current = 0;
-    document.body.style.cursor = 'grabbing';
-    document.body.style.userSelect = 'none';
-  };
-
-  const handleDragMove = (clientX: number) => {
-    if (!isDragging) return;
-    const deltaX = clientX - lastPos.current;
-    lastPos.current = clientX;
-    accumulatedDelta.current += deltaX;
-
-    if (accumulatedDelta.current > ROTATION_THRESHOLD) {
-      onRotateRight();
-      accumulatedDelta.current = 0;
-    } else if (accumulatedDelta.current < -ROTATION_THRESHOLD) {
-      onRotateLeft();
-      accumulatedDelta.current = 0;
-    }
-  };
+  // --- Drag-to-Rotate Logic ---
+  const circleRef = useRef<HTMLDivElement>(null);
   
-  const handleDragEnd = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    document.body.style.cursor = 'default';
-    document.body.style.userSelect = 'auto';
-  };
+  // Use refs to hold the latest callbacks, avoiding stale closures in event listeners
+  const onRotateLeftRef = useRef(onRotateLeft);
+  const onRotateRightRef = useRef(onRotateRight);
+  useEffect(() => {
+    onRotateLeftRef.current = onRotateLeft;
+    onRotateRightRef.current = onRotateRight;
+  }, [onRotateLeft, onRotateRight]);
 
-  const onMouseDown = (e: React.MouseEvent) => { e.preventDefault(); handleDragStart(e.clientX); };
-  const onMouseMove = (e: React.MouseEvent) => { handleDragMove(e.clientX); };
-  const onTouchStart = (e: React.TouchEvent) => { handleDragStart(e.touches[0].clientX); };
-  const onTouchMove = (e: React.TouchEvent) => { handleDragMove(e.touches[0].clientX); };
+  useEffect(() => {
+    const circleElement = circleRef.current;
+    if (!circleElement) return;
+
+    const isDragging = { current: false };
+    const dragState = {
+      startAngle: 0,
+      accumulatedAngle: 0,
+      center: { x: 0, y: 0 },
+    };
+
+    const handleDragMove = (e: MouseEvent | TouchEvent) => {
+      if (!isDragging.current) return;
+      
+      const { clientX, clientY } = 'touches' in e ? e.touches[0] : e;
+      const { center } = dragState;
+      const currentAngle = Math.atan2(clientY - center.y, clientX - center.x);
+      
+      let deltaAngle = currentAngle - dragState.startAngle;
+      if (deltaAngle > Math.PI) deltaAngle -= 2 * Math.PI;
+      else if (deltaAngle < -Math.PI) deltaAngle += 2 * Math.PI;
+      
+      dragState.accumulatedAngle += deltaAngle;
+      dragState.startAngle = currentAngle;
+
+      const ROTATION_TRIGGER_ANGLE = Math.PI / 6; // 30 degrees
+
+      while (dragState.accumulatedAngle >= ROTATION_TRIGGER_ANGLE) {
+        onRotateLeftRef.current(); // Positive angle change = counter-clockwise
+        dragState.accumulatedAngle -= ROTATION_TRIGGER_ANGLE;
+      }
+      while (dragState.accumulatedAngle <= -ROTATION_TRIGGER_ANGLE) {
+        onRotateRightRef.current(); // Negative angle change = clockwise
+        dragState.accumulatedAngle += ROTATION_TRIGGER_ANGLE;
+      }
+    };
+
+    const handleDragEnd = () => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+      circleElement.style.cursor = 'grab';
+
+      document.removeEventListener('mousemove', handleDragMove);
+      document.removeEventListener('mouseup', handleDragEnd);
+      document.removeEventListener('touchmove', handleDragMove);
+      document.removeEventListener('touchend', handleDragEnd);
+    };
+    
+    const handleDragStart = (e: MouseEvent | TouchEvent) => {
+      if (e.type === 'touchstart') e.preventDefault();
+      
+      isDragging.current = true;
+      const { clientX, clientY } = 'touches' in e ? e.touches[0] : e;
+      
+      const rect = circleElement.getBoundingClientRect();
+      dragState.center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      dragState.startAngle = Math.atan2(clientY - dragState.center.y, clientX - dragState.center.x);
+      dragState.accumulatedAngle = 0;
+
+      document.body.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+      circleElement.style.cursor = 'grabbing';
+      
+      document.addEventListener('mousemove', handleDragMove);
+      document.addEventListener('mouseup', handleDragEnd);
+      document.addEventListener('touchmove', handleDragMove, { passive: false });
+      document.addEventListener('touchend', handleDragEnd);
+    };
+    
+    circleElement.addEventListener('mousedown', handleDragStart);
+    circleElement.addEventListener('touchstart', handleDragStart, { passive: false });
+    
+    return () => {
+      circleElement.removeEventListener('mousedown', handleDragStart);
+      circleElement.removeEventListener('touchstart', handleDragStart);
+      handleDragEnd();
+    };
+  }, []);
 
   return (
     <div 
-      className="relative aspect-square w-[320px] xs:w-[384px] sm:w-[512px] md:w-[640px] lg:w-[704px]"
-      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={handleDragEnd}
-      onMouseLeave={handleDragEnd}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={handleDragEnd}
+      ref={circleRef}
+      className="relative aspect-square w-[320px] xs:w-[384px] sm:w-[512px] md:w-[640px] lg:w-[704px] cursor-grab"
+      style={{ touchAction: 'none' }}
     >
       <div className="absolute top-0 left-0 w-full h-full">
-        {/* Layer 1: Background Segments */}
-        {pieces.map(p => (
+        {pieces.map(piece => (
           <CircleSegment
-            key={p.key}
-            angle={p.angle}
-            innerRadius={p.innerRadius}
-            outerRadius={p.outerRadius}
+            key={piece.key}
+            angle={piece.angle}
+            innerRadius={piece.innerRadius}
+            outerRadius={piece.outerRadius}
             bgColor={
-              p.quality === ChordQuality.MODE
-                ? p.position % 2 === 0 ? '#4b5563' : '#374151'
-                : p.quality === ChordQuality.INTERVAL
+              piece.quality === ChordQuality.MODE
+                ? piece.position % 2 === 0 ? '#4b5563' : '#374151'
+                : piece.quality === ChordQuality.INTERVAL
                 ? '#e5e7eb'
-                : p.isDiatonic ? '#ffffff' : '#f3f4f6'
+                : piece.isDiatonic ? '#ffffff' : '#f3f4f6'
             }
-            isClickable={p.isClickable}
-            onClick={p.onClick}
-            isDiatonic={p.isDiatonic}
-            isTonic={p.isTonic}
+            isClickable={piece.isClickable}
+            onClick={piece.onClick}
+            isDiatonic={piece.isDiatonic}
+            isTonic={piece.isTonic}
           />
         ))}
 
-        {/* Layer 2: Content (Re-architected with Absolute Positioning) */}
-        {pieces.map(p => {
-          const angleRad = (p.angle * Math.PI) / 180;
-          let radius = getVisualCenterRadius(p.innerRadius, p.outerRadius);
+        {pieces.map(piece => {
+          const angleRad = (piece.angle * Math.PI) / 180;
+          let radius = getVisualCenterRadius(piece.innerRadius, piece.outerRadius);
 
-          if (p.quality === ChordQuality.MODE) {
-            radius -= 2;
-          } else if (p.quality !== ChordQuality.INTERVAL) {
-            radius -= 1.5;
-          }
+          if (piece.quality === ChordQuality.MODE) radius -= 2;
+          else if (piece.quality !== ChordQuality.INTERVAL) radius -= 1.5;
 
           const x = 50 + radius * Math.sin(angleRad);
           const y = 50 - radius * Math.cos(angleRad);
           
-          const isChordRing = [ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.DIMINISHED].includes(p.quality);
-          const transform = `translate(-50%, -50%) rotate(${p.angle}deg)`;
+          const isChordRing = [ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.DIMINISHED].includes(piece.quality);
+          const transform = `translate(-50%, -50%) rotate(${piece.angle}deg)`;
 
           return (
              <div
-              key={`content-wrapper-${p.key}`}
-              className="absolute pointer-events-none transition-opacity duration-300"
-              style={{
-                top: `${y}%`,
-                left: `${x}%`,
-                transform: transform,
-              }}
+              key={`content-wrapper-${piece.key}`}
+              className="absolute pointer-events-none"
+              style={{ top: `${y}%`, left: `${x}%`, transform }}
             >
               {isChordRing ? (
                 <div className="flex flex-col items-center justify-center gap-0.5 sm:gap-1">
                   <div className="font-mono font-bold text-gray-700 text-[10px] xs:text-xs sm:text-sm md:text-base">
-                    {p.numeral}
+                    {piece.numeral}
                   </div>
                   <CircleContent
-                    chord={CHORD_NOTES_MAP[p.chordName] || { name: p.chordName, notes: [] }}
-                    quality={p.quality}
-                    position={p.position}
+                    chord={piece.chord}
+                    quality={piece.quality}
+                    position={piece.position}
                   />
                 </div>
               ) : (
                 <CircleContent
-                  chord={CHORD_NOTES_MAP[p.chordName] || { name: p.chordName, notes: [] }}
-                  quality={p.quality}
-                  position={p.position}
+                  chord={piece.chord}
+                  quality={piece.quality}
+                  position={piece.position}
                 />
               )}
             </div>

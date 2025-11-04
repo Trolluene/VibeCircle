@@ -1,4 +1,4 @@
-import { Chord, ChordQuality, CirclePosition, DiatonicChord } from './types';
+import { ChordQuality, CirclePosition, DiatonicChord } from './types';
 
 export const MODES: { name: string; position: number }[] = [
     { name: 'Ionian', position: 0 }, { name: 'Lydian', position: 1 },
@@ -12,8 +12,8 @@ export const INTERVAL_NAMES: string[] = [
   'Tritone', 'Minor\n2nd', 'Minor\n6th', 'Minor\n3rd', 'Minor\n7th', 'Perfect\n4th'
 ];
 
-// New data structure for Roman numerals based on relative position on the circle.
-// This ensures 100% accuracy with the reference image.
+// This data structure maps a segment's physical position on the circle (relative
+// to the top 'I' slot) to the correct Roman numeral for each chord type.
 export const RELATIVE_POSITION_NUMERALS = [
   // 0: Tonic Position
   { major: 'I', minor: 'vi', diminished: 'vii°' },
@@ -28,7 +28,7 @@ export const RELATIVE_POSITION_NUMERALS = [
   // 5: Five steps clockwise (Major 7th)
   { major: 'vii', minor: '#v', diminished: '#vi°' },
   // 6: Six steps clockwise (Tritone)
-  { major: '#iv°', minor: 'biii', diminished: 'iii°' }, // Note: F# Major is technically #IV, but the chord itself is diminished in the key of C. Using the dim numeral from the image.
+  { major: '#iv°', minor: 'biii', diminished: 'iii°' },
   // 7: Seven steps clockwise / Five steps counter-clockwise (Minor 2nd)
   { major: 'bII', minor: 'bvii', diminished: 'i°' },
   // 8: Eight steps clockwise / Four steps counter-clockwise (Minor 6th)
@@ -41,24 +41,8 @@ export const RELATIVE_POSITION_NUMERALS = [
   { major: 'IV', minor: 'ii', diminished: 'iii°' },
 ];
 
-
-export const CHROMATIC_NOTE_MAP: { [note: string]: number } = {
-  'B#': 0, 'C': 0,
-  'C#': 1, 'Db': 1,
-  'D': 2,
-  'D#': 3, 'Eb': 3,
-  'E': 4, 'Fb': 4,
-  'F': 5, 'E#': 5,
-  'F#': 6, 'Gb': 6,
-  'G': 7,
-  'G#': 8, 'Ab': 8,
-  'A': 9,
-  'A#': 10, 'Bb': 10,
-  'B': 11, 'Cb': 11,
-};
-
-
-// This new unified structure is the single source of truth for positional data.
+// This is the single source of truth for the layout of the Circle of Fifths.
+// It defines the chords and key signature for each of the 12 positions.
 export const POSITIONAL_DATA: CirclePosition[] = [
   // major, minor, diminished, sharps, flats
   { major: 'C', minor: 'Am', diminished: 'B°', sharps: 0, flats: 0 },
@@ -75,6 +59,9 @@ export const POSITIONAL_DATA: CirclePosition[] = [
   { major: 'F', minor: 'Dm', diminished: 'E°', sharps: 0, flats: 1 },
 ];
 
+// NOTE: While this could be generated, music theory rules for note spelling
+// (e.g., avoiding double letters in a scale) make programmatic generation complex.
+// For this application, a lookup table is a pragmatic and reliable solution.
 export const DIATONIC_CHORDS_FOR_KEY: { [key: string]: DiatonicChord[] } = {
   'C': [
     { numeral: 'I', name: 'C', quality: ChordQuality.MAJOR },
@@ -186,52 +173,10 @@ export const DIATONIC_CHORDS_FOR_KEY: { [key: string]: DiatonicChord[] } = {
   ],
 };
 
-// A new, flat map for easier lookup of chord note data.
-export const CHORD_NOTES_MAP: { [name: string]: Chord } = {
-    // Major 7ths
-    'C': { name: 'C', notes: ['C', 'E', 'G', 'B'] },
-    'G': { name: 'G', notes: ['G', 'B', 'D', 'F#'] },
-    'D': { name: 'D', notes: ['D', 'F#', 'A', 'C#'] },
-    'A': { name: 'A', notes: ['A', 'C#', 'E', 'G#'] },
-    'E': { name: 'E', notes: ['E', 'G#', 'B', 'D#'] },
-    'B': { name: 'B', notes: ['B', 'D#', 'F#', 'A#'] },
-    'F#': { name: 'F#', notes: ['F#', 'A#', 'C#', 'E#'] },
-    'Db': { name: 'Db', notes: ['Db', 'F', 'Ab', 'C'] },
-    'Ab': { name: 'Ab', notes: ['Ab', 'C', 'Eb', 'G'] },
-    'Eb': { name: 'Eb', notes: ['Eb', 'G', 'Bb', 'D'] },
-    'Bb': { name: 'Bb', notes: ['Bb', 'D', 'F', 'A'] },
-    'F': { name: 'F', notes: ['F', 'A', 'C', 'E'] },
-    // Minor 7ths
-    'Am': { name: 'Am', notes: ['A', 'C', 'E', 'G'] },
-    'Em': { name: 'Em', notes: ['E', 'G', 'B', 'D'] },
-    'Bm': { name: 'Bm', notes: ['B', 'D', 'F#', 'A'] },
-    'F#m': { name: 'F#m', notes: ['F#', 'A', 'C#', 'E'] },
-    'C#m': { name: 'C#m', notes: ['C#', 'E', 'G#', 'B'] },
-    'G#m': { name: 'G#m', notes: ['G#', 'B', 'D#', 'F#'] },
-    'D#m': { name: 'D#m', notes: ['D#', 'F#', 'A#', 'C#'] },
-    'A#m': { name: 'A#m', notes: ['A#', 'C#', 'E#', 'G#'] },
-    'Bbm': { name: 'Bbm', notes: ['Bb', 'Db', 'F', 'Ab'] },
-    'Fm': { name: 'Fm', notes: ['F', 'Ab', 'C', 'Eb'] },
-    'Cm': { name: 'Cm', notes: ['C', 'Eb', 'G', 'Bb'] },
-    'Gm': { name: 'Gm', notes: ['G', 'Bb', 'D', 'F'] },
-    'Dm': { name: 'Dm', notes: ['D', 'F', 'A', 'C'] },
-    // Diminished (m7b5)
-    'B°': { name: 'B°', notes: ['B', 'D', 'F', 'A'] },
-    'F#°': { name: 'F#°', notes: ['F#', 'A', 'C', 'E'] }, // Corrected notes for F# half-diminished
-    'C#°': { name: 'C#°', notes: ['C#', 'E', 'G', 'B'] }, // Corrected notes
-    'G#°': { name: 'G#°', notes: ['G#', 'B', 'D', 'F#'] }, // Corrected notes
-    'D#°': { name: 'D#°', notes: ['D#', 'F#', 'A', 'C#'] }, // Corrected notes
-    'A#°': { name: 'A#°', notes: ['A#', 'C#', 'E', 'G#'] },
-    'E#°': { name: 'E#°', notes: ['E#', 'G#', 'B', 'D#'] },
-    'C°': { name: 'C°', notes: ['C', 'Eb', 'Gb', 'Bb'] },
-    'G°': { name: 'G°', notes: ['G', 'Bb', 'Db', 'F'] },
-    'D°': { name: 'D°', notes: ['D', 'F', 'Ab', 'C'] },
-    'A°': { name: 'A°', notes: ['A', 'C', 'Eb', 'G'] },
-    'E°': { name: 'E°', notes: ['E', 'G', 'Bb', 'D'] },
-};
+// --- UI Color and Position Mapping ---
 
-
-// Mapping note names to their position on the circle for coloring
+// Maps a note name to its position on the Circle of Fifths (0-11) for color coding.
+// C is at the 0 position (top), G is at 1, etc.
 const notePositionData: { [note: string]: number } = {
   'C': 0, 'B#': 0,
   'G': 1,
@@ -248,6 +193,7 @@ const notePositionData: { [note: string]: number } = {
 };
 export const NOTE_POSITION_MAP = new Map(Object.entries(notePositionData));
 
+// Defines a color for each of the 12 positions on the circle.
 export const NOTE_COLORS = [
   '#ef4444', // C (0) - Red
   '#f97316', // G (1) - Orange
