@@ -1,0 +1,5 @@
+{
+  "name": "Interactive Circle of Fifths",
+  "description": "An interactive musical tool to explore the Circle of Fifths. Select a key to see its related major and minor chords, helping musicians understand music theory and compose melodies.",
+  "requestFramePermissions": []
+}
