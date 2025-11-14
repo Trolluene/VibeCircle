@@ -4,10 +4,10 @@ interface CircleSegmentProps {
   angle: number;
   innerRadius: number;
   outerRadius: number;
-  bgColor: string;
+  background: string;
   isClickable: boolean;
   onClick: () => void;
-  isDiatonic: boolean;
+  borderColor: string;
   isTonic: boolean;
 }
 
@@ -15,10 +15,10 @@ const CircleSegment: React.FC<CircleSegmentProps> = ({
   angle,
   innerRadius,
   outerRadius,
-  bgColor,
+  background,
   isClickable,
   onClick,
-  isDiatonic,
+  borderColor,
   isTonic,
 }) => {
   const segmentAngleRad = (30 * Math.PI) / 180;
@@ -36,10 +36,8 @@ const CircleSegment: React.FC<CircleSegmentProps> = ({
   const clipPath = `polygon(${p1x}% ${p1y}%, ${p2x}% ${p2y}%, ${p3x}% ${p3y}%, ${p4x}% ${p4y}%)`;
 
   const borderStyle: React.CSSProperties = {};
-  if (isTonic) {
-    borderStyle.border = '2px solid #3b82f6';
-  } else if (isDiatonic) {
-    borderStyle.border = '1px solid #d1d5db';
+  if (borderColor) {
+    borderStyle.border = `${isTonic ? '2px' : '1px'} solid ${borderColor}`;
   }
 
 
@@ -53,7 +51,7 @@ const CircleSegment: React.FC<CircleSegmentProps> = ({
         className={`absolute top-0 left-0 w-full h-full transition-colors duration-300 ${isClickable ? 'cursor-pointer' : ''}`}
         style={{ clipPath }}
       >
-        <div className="w-full h-full" style={{backgroundColor: bgColor, ...borderStyle}} />
+        <div className="w-full h-full" style={{background: background, ...borderStyle}} />
       </div>
     </div>
   );

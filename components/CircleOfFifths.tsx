@@ -28,7 +28,6 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
   ];
 
   const pieces = useMemo(() => {
-    const DIATONIC_POSITIONS = [0, 1, 11]; 
     const selectedKeyName = POSITIONAL_DATA[selectedKeyIndex].major;
 
     return rings.flatMap(ring => 
@@ -47,12 +46,16 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
           default: chordName = '';
         }
 
-        const isDiatonicMajor = ring.quality === ChordQuality.MAJOR && DIATONIC_POSITIONS.includes(i);
-        const isDiatonicMinor = ring.quality === ChordQuality.MINOR && DIATONIC_POSITIONS.includes(i);
+        const isDiatonicMajor = ring.quality === ChordQuality.MAJOR && [0, 1, 11].includes(i);
+        const isDiatonicMinor = ring.quality === ChordQuality.MINOR && [0, 1, 11].includes(i);
         const isDiatonicDiminished = ring.quality === ChordQuality.DIMINISHED && i === 0;
         const isDiatonic = isDiatonicMajor || isDiatonicMinor || isDiatonicDiminished;
         
         const isTonic = ring.quality === ChordQuality.MAJOR && i === 0;
+
+        const isRelatedMajorKey = ring.quality === ChordQuality.MAJOR && (i === 1 || i === 11);
+        const isRelatedMinorKey = ring.quality === ChordQuality.MINOR && i === 0;
+        const isRelatedKey = isRelatedMajorKey || isRelatedMinorKey;
         
         const numerals = RELATIVE_POSITION_NUMERALS[i];
         let numeral: string;
@@ -65,6 +68,36 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
 
         const chord = getChordNotes(chordName, selectedKeyName);
 
+        let background: string;
+        let borderColor: string;
+
+        if (ring.quality === ChordQuality.MODE) {
+            background = i % 2 === 0 ? '#4b5563' : '#374151';
+            borderColor = '';
+        } else if (ring.quality === ChordQuality.INTERVAL) {
+            background = '#e5e7eb'; // gray-200
+            borderColor = '#d1d5db'; // gray-300
+        } else if (isChordRing) {
+            if (isRelatedKey) {
+                background = '#fef9c3'; // light yellow
+            } else if (isDiatonic) {
+                background = '#ffffff'; // white
+            } else {
+                background = 'linear-gradient(to bottom, #f9fafb, #f3f4f6)'; // gray-50 to gray-100
+            }
+            
+            if (isTonic) {
+                borderColor = '#3b82f6'; // blue-500
+            } else if (isDiatonic) {
+                borderColor = '#9ca3af'; // gray-400
+            } else {
+                borderColor = '#d1d5db'; // gray-300
+            }
+        } else {
+            background = 'transparent';
+            borderColor = '';
+        }
+
         return {
           key: `${ring.quality}-${i}`,
           angle: i * 30,
@@ -73,11 +106,11 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
           quality: ring.quality,
           chord,
           numeral,
-          isDiatonic,
+          background,
+          borderColor,
           isTonic,
           isClickable: ring.quality === ChordQuality.MAJOR,
           onClick: ring.quality === ChordQuality.MAJOR ? () => onKeySelect(dataIndex) : () => {},
-          position: i,
         };
       })
     ).filter(p => p.chord.name);
@@ -193,16 +226,10 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
             angle={piece.angle}
             innerRadius={piece.innerRadius}
             outerRadius={piece.outerRadius}
-            bgColor={
-              piece.quality === ChordQuality.MODE
-                ? piece.position % 2 === 0 ? '#4b5563' : '#374151'
-                : piece.quality === ChordQuality.INTERVAL
-                ? '#e5e7eb'
-                : piece.isDiatonic ? '#ffffff' : '#f3f4f6'
-            }
+            background={piece.background}
             isClickable={piece.isClickable}
             onClick={piece.onClick}
-            isDiatonic={piece.isDiatonic}
+            borderColor={piece.borderColor}
             isTonic={piece.isTonic}
           />
         ))}
@@ -218,6 +245,7 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
           const y = 50 - radius * Math.cos(angleRad);
           
           const isChordRing = [ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.DIMINISHED].includes(piece.quality);
+          // This transform positions and rotates the content container to align with its segment.
           const transform = `translate(-50%, -50%) rotate(${piece.angle}deg)`;
 
           return (
@@ -227,22 +255,28 @@ const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ selectedKeyIndex, onKey
               style={{ top: `${y}%`, left: `${x}%`, transform }}
             >
               {isChordRing ? (
-                <div className="flex flex-col items-center justify-center gap-0.5 sm:gap-1">
-                  <div className="font-mono font-bold text-gray-700 text-[10px] xs:text-xs sm:text-sm md:text-base">
+                 <div 
+                  className="flex flex-col items-center justify-center gap-0.5 sm:gap-1"
+                >
+                  <div 
+                    className="font-mono font-bold text-gray-700 text-[10px] xs:text-xs sm:text-sm md:text-base"
+                  >
                     {piece.numeral}
                   </div>
+                  <div>
+                    <CircleContent
+                      chord={piece.chord}
+                      quality={piece.quality}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
                   <CircleContent
                     chord={piece.chord}
                     quality={piece.quality}
-                    position={piece.position}
                   />
                 </div>
-              ) : (
-                <CircleContent
-                  chord={piece.chord}
-                  quality={piece.quality}
-                  position={piece.position}
-                />
               )}
             </div>
           );

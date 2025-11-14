@@ -6,7 +6,6 @@ import { getRootNote } from '../utils/musicTheory';
 interface CircleContentProps {
   chord: Chord;
   quality: ChordQuality;
-  position: number;
 }
 
 const CircleContent: React.FC<CircleContentProps> = ({ chord, quality }) => {
